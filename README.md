@@ -1,4 +1,3 @@
 # yemek_tarifleri
 
-A new Flutter project.
-
+Flutter kullanılarak geliştirilen yemek tarifleri uygulaması.
