@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart'; // Yeni paketimiz
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart';
 import 'package:yemek_tarifleri/globals.dart';
+import 'package:yemek_tarifleri/main_navigation.dart'; // Yeni navigasyon dosyamız
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,9 +57,12 @@ class MyApp extends StatelessWidget {
       // EasyLocalization Ayarları
       localizationsDelegates: context.localizationDelegates,
       supportedLocales: context.supportedLocales,
-      locale: context.locale, // Anlık seçili dil
+      locale: context.locale, 
       
-      home: kullaniciGirisYapti ? Anasayfa() : ProfilSayfasi(),
+      // DEĞİŞEN KISIM:
+      // Eski anasayfa yerine MainNavigation kullanıyoruz.
+      // Eğer kullanıcı giriş yapmışsa yeni kabuk sayfaya, yapmamışsa profil/giriş sayfasına gider.
+      home: kullaniciGirisYapti ? const MainNavigation() : const ProfilSayfasi(),
     );
   }
 }
