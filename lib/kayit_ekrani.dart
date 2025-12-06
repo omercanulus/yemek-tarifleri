@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:yemek_tarifleri/giris_ekrani.dart';
-import 'package:yemek_tarifleri/kullanici_profili.dart';
-import 'package:yemek_tarifleri/main.dart';
+import 'package:yemek_tarifleri/ana_sayfa.dart'; // Ana sayfaya yönlendirmek için
+import 'package:yemek_tarifleri/giris_ekrani.dart'; // Giriş ekranına dönmek için
 import 'package:yemek_tarifleri/animations.dart';
-import 'package:yemek_tarifleri/profil_sayfasi.dart';
+import 'main.dart'; // kullaniciGirisYapti için
 
 class KayitEkrani extends StatefulWidget {
   const KayitEkrani({super.key});
@@ -14,285 +13,213 @@ class KayitEkrani extends StatefulWidget {
 }
 
 class _KayitEkraniState extends State<KayitEkrani> {
-final TextEditingController usernameController = TextEditingController();
-final TextEditingController emailController = TextEditingController();
-final TextEditingController passwordController = TextEditingController();
-final TextEditingController passwordConfirmController = TextEditingController();
+  // Controller'lar veriyi almak için gerekli
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  
+  bool isLoading = false; // Yükleniyor durumu
 
-Future<void> signUp() async {
-  final supabase = Supabase.instance.client;
+  Future<void> signUp() async {
+    // Dil Kontrolü (Hata mesajları için)
+    bool isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+    final confirmPassword = confirmPasswordController.text.trim();
 
-  final email = emailController.text.trim();
-  final username = usernameController.text.trim();
-  final password = passwordController.text.trim();
-  final passwordConfirm = passwordConfirmController.text.trim();
+    // 1. Basit Kontroller
+    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showError(isEnglish ? "Please fill in all fields" : "Lütfen tüm alanları doldurun");
+      return;
+    }
 
-  // Alan kontrolü
-  if (email.isEmpty || username.isEmpty || password.isEmpty || passwordConfirm.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Lütfen tüm alanları doldurun'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return;
-  }
+    if (password != confirmPassword) {
+      _showError(isEnglish ? "Passwords do not match" : "Şifreler uyuşmuyor");
+      return;
+    }
 
-  // Email formatını kontrol et
-  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}').hasMatch(email)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Geçerli bir email adresi girin'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return;
-  }
+    if (password.length < 6) {
+      _showError(isEnglish ? "Password must be at least 6 characters" : "Şifre en az 6 karakter olmalı");
+      return;
+    }
 
-  // Kullanıcı adı uzunluğunu kontrol et
-  if (username.length < 3) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Kullanıcı adı en az 3 karakter olmalıdır'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return;
-  }
+    setState(() {
+      isLoading = true;
+    });
 
-  // Şifre uzunluğunu kontrol et
-  if (password.length < 6) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Şifre en az 6 karakter olmalıdır'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return;
-  }
-
-  if (password != passwordConfirm) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Şifreler eşleşmiyor'),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    return;
-  }
-
-  // Loading göster
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Colors.blue,
-        ),
+    try {
+      // 2. Supabase Kayıt İşlemi
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
       );
-    },
-  );
 
-  try {
-    final response = await supabase.auth.signUp(
-      email: email,
-      password: password,
-    );
-
-    // Loading'i kapat
-    Navigator.pop(context);
-
-    if (response.user != null) {
-      // Kullanıcı adını metadata'ya manuel olarak ekle
-      try {
-        await supabase.auth.updateUser(
-          UserAttributes(
-            data: {'username': username},
-          ),
+      if (response.user != null) {
+        // Kayıt Başarılı!
+        // Supabase bazen kayıt sonrası otomatik giriş yapmaz, o yüzden manuel giriş de yapıyoruz garanti olsun
+         await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
         );
-      } catch (e) {
-        print('Kullanıcı adı güncellenirken hata: $e');
+
+        kullaniciGirisYapti = true;
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(isEnglish ? "Account created successfully! Welcome!" : "Hesap başarıyla oluşturuldu! Hoş geldiniz!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Ana sayfaya yönlendir ve geçmişi sil (Geri dönemesin)
+          Navigator.of(context).pushAndRemoveUntil(
+            FadeRoute(page: Anasayfa()),
+            (route) => false,
+          );
+        }
       }
+    } catch (e) {
+      // Hata Yönetimi
+      String errorMessage = isEnglish ? "An error occurred" : "Bir hata oluştu";
       
-      // Kullanıcı giriş yaptı olarak işaretle
-      kullaniciGirisYapti = true;
-      
-      // Yeni kullanıcı için boş favori cache'i oluştur
-      FavoriCache.updateFavorites({});
+      if (e.toString().contains("already registered") || e.toString().contains("unique constraint")) {
+        errorMessage = isEnglish ? "This email is already in use" : "Bu e-posta adresi zaten kayıtlı";
+      } else if (e.toString().contains("Network")) {
+        errorMessage = isEnglish ? "Check your internet connection" : "İnternet bağlantınızı kontrol edin";
+      }
 
-      // Başarı mesajı göster
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kayıt başarılı! Hoş geldiniz! '),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      _showError(errorMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
 
-      // Başarılı kayıt sonrası profil sayfasına geçiş
-      Navigator.of(context).pushAndRemoveUntil(
-        FadeRoute(page: const KullaniciProfili()),
-        (route) => false,
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kayıt başarısız oldu. Lütfen tekrar deneyin.'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  } catch (e) {
-    // Loading'i kapat
-    Navigator.pop(context);
-    
-    String errorMessage = 'Bir hata oluştu';
-    
-    if (e.toString().contains('User already registered')) {
-      errorMessage = 'Bu email adresi zaten kayıtlı';
-    } else if (e.toString().contains('Password should be at least')) {
-      errorMessage = 'Şifre çok kısa';
-    } else if (e.toString().contains('Invalid email')) {
-      errorMessage = 'Geçersiz email formatı';
-    } else if (e.toString().contains('Too many requests')) {
-      errorMessage = 'Çok fazla deneme. Lütfen bekleyin';
-    } else if (e.toString().contains('Network')) {
-      errorMessage = 'İnternet bağlantınızı kontrol edin';
-    }
-    
+  void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(errorMessage),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 4),
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-        backgroundColor: Colors.white,
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          automaticallyImplyLeading: true,
-          leading: IconButton(
-            onPressed: () {
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const ProfilSayfasi()),
-                (route) => false,
-              );
-            },
-            icon: Icon(Icons.arrow_back_ios, color: Colors.black),
-          ),
-        ),
-        body: SingleChildScrollView(
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal:40),
-            height: MediaQuery.of(context).size.height-200,
-            width: double.infinity,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Column(
-                  children: [
-                    Text('Kayıt Ol',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 35,
-                      fontWeight: FontWeight.w900,
+    bool isEnglish = Localizations.localeOf(context).languageCode == 'en';
 
-                    ),),
-                    SizedBox(height: 10),
-                      Text('Yeni bir hesap oluşturun',
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          icon: Icon(Icons.arrow_back_ios, size: 20, color: Colors.black),
+        ),
+      ),
+      body: SingleChildScrollView(
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 40),
+          height: MediaQuery.of(context).size.height - 50,
+          width: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              Column(
+                children: <Widget>[
+                  Text(
+                    isEnglish ? "Sign up" : "Kaydol",
                     style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
                       fontFamily: 'Nunito',
-                      fontSize: 16,
-                      color: Colors.grey
-                    ))
-                    
-                  ],
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    isEnglish ? "Create an account, it's free" : "Hesap oluştur, tamamen ücretsiz",
+                    style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+                  )
+                ],
+              ),
+              Column(
+                children: <Widget>[
+                  inputFile(label: isEnglish ? "Email" : "E-posta", controller: emailController),
+                  inputFile(label: isEnglish ? "Password" : "Şifre", obscureText: true, controller: passwordController),
+                  inputFile(label: isEnglish ? "Confirm Password" : "Şifre Tekrar", obscureText: true, controller: confirmPasswordController),
+                ],
+              ),
+              Container(
+                padding: EdgeInsets.only(top: 3, left: 3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border(
+                    bottom: BorderSide(color: Colors.black),
+                    top: BorderSide(color: Colors.black),
+                    left: BorderSide(color: Colors.black),
+                    right: BorderSide(color: Colors.black),
+                  ),
                 ),
-                Column(
-                  children: [
-                    inputFile(label: 'Kullanıcı Adı', controller: usernameController),
-                    inputFile(label: 'E-posta', controller: emailController),
-                    inputFile(label: 'Şifre', obscureText: true, controller: passwordController),
-                    inputFile(label: 'Şifreyi Tekrar Giriniz', obscureText: true, controller: passwordConfirmController)
-                  ],
+                child: MaterialButton(
+                  minWidth: double.infinity,
+                  height: 60,
+                  onPressed: isLoading ? null : signUp, // Yüklenirken tıklanmasın
+                  color: Colors.blue.shade200,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                  child: isLoading 
+                    ? CircularProgressIndicator(color: Colors.white) 
+                    : Text(
+                        isEnglish ? "Sign up" : "Kaydol",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
                 ),
-                Container(
-                  //padding: EdgeInsets.only(top: 3,left: 3),
-                   decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: Colors.blue.shade300
-                            )
-                          ),
-                           child: MaterialButton(
-                            minWidth: double.infinity,
-                            height:60,
-                            color: Colors.black,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadiusGeometry.circular(60)
-                            ),
-                            onPressed: () {
-                            signUp();
-                          },
-                          child: Text('Kayıt Ol',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 20,
-                            color: Colors.white
-                          ),),
-                          ),
-                ),
-              
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Zaten bir hesabınız var mı?'),
-                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      SlideUpRoute(page: GirisEkrani()),
-                    );
-                  },
-                  child: Text(
-                    'Giriş Yapın',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14,color: Colors.blue.shade600),
-                  ),
-                )
+                children: <Widget>[
+                  Text(isEnglish ? "Already have an account? " : "Zaten bir hesabın var mı? "),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, SlideRightRoute(page: GirisEkrani()));
+                    },
+                    child: Text(
+                      isEnglish ? "Login" : "Giriş Yap",
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+                    ),
+                  )
                 ],
               )
-              ],
-            ),
+            ],
           ),
         ),
+      ),
     );
   }
 }
 
-
+// Yardımcı Widget: Giriş Kutusu (Aynen kullanıyoruz)
 Widget inputFile({required String label, bool obscureText = false, required TextEditingController controller}) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
+    children: <Widget>[
       Text(
         label,
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Colors.black87),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: Colors.black87,
+        ),
       ),
       SizedBox(height: 5),
       TextField(
@@ -302,7 +229,7 @@ Widget inputFile({required String label, bool obscureText = false, required Text
           contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 10),
           enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade400)),
           border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade400)),
-          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue.shade400)),
         ),
       ),
       SizedBox(height: 10),

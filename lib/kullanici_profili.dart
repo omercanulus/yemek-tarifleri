@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:easy_localization/easy_localization.dart'; // EKLENDİ
 import 'package:yemek_tarifleri/ana_sayfa.dart';
 import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
 import 'package:yemek_tarifleri/filtreleme_sayfasi.dart';
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
-import 'package:yemek_tarifleri/yemek_listesi.dart';
-import 'main.dart';
-import 'animations.dart';
+import 'package:yemek_tarifleri/animations.dart';
+import 'main.dart'; // FavoriCache ve kullaniciGirisYapti için
 
 class KullaniciProfili extends StatefulWidget {
   const KullaniciProfili({super.key});
@@ -16,197 +16,154 @@ class KullaniciProfili extends StatefulWidget {
 }
 
 class _KullaniciProfiliState extends State<KullaniciProfili> {
+  int _currentIndex = 3;
 
-  void cikisYap() async {
-  await Supabase.instance.client.auth.signOut();
-  kullaniciGirisYapti = false; // BURAYA EKLE
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const ProfilSayfasi()),
-  );
-}
-
-
-  String _getUsername(User? user) {
-    if (user == null) return "Kullanıcı";
-    
-    // Önce metadata'dan kullanıcı adını almaya çalış
-    final metadata = user.userMetadata;
-    if (metadata != null && metadata['username'] != null) {
-      return metadata['username'] as String;
+  Future<void> _cikisYap() async {
+    await Supabase.instance.client.auth.signOut();
+    kullaniciGirisYapti = false;
+    FavoriCache.clear();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        FadeRoute(page: ProfilSayfasi()), 
+        (route) => false,
+      );
     }
-    
-    // Eğer metadata'da yoksa email'den al
-    final email = user.email ?? "";
-    if (email.contains('@')) {
-      return email.split('@')[0];
+  }
+
+  // --- DİL DEĞİŞTİRME FONKSİYONU ---
+  void _dilDegistir() {
+    // Eğer şu anki dil Türkçe ise İngilizce yap, değilse Türkçe yap
+    if (context.locale.languageCode == 'tr') {
+      context.setLocale(Locale('en'));
+    } else {
+      context.setLocale(Locale('tr'));
     }
-    
-    return "Kullanıcı";
   }
 
   @override
   Widget build(BuildContext context) {
-    int _currentIndex=3;
-    final user = Supabase.instance.client.auth.currentUser;
-    final email = user?.email ?? "email@ornek.com";
-    final username = _getUsername(user);
+    // EasyLocalization'a soruyoruz: Dil İngilizce mi?
+    bool isEnglish = context.locale.languageCode == 'en';
+    
+    final userEmail = Supabase.instance.client.auth.currentUser?.email ?? (isEnglish ? "Guest User" : "Misafir Kullanıcı");
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        automaticallyImplyLeading: false, // Geri butonunu kaldır
-        title: const Text("Profilim",
-            style: TextStyle(fontFamily: 'Nunito', fontSize: 28, fontWeight: FontWeight.w900)),
-        centerTitle: true,
+        automaticallyImplyLeading: false,
+        title: Text(
+          'my_profile'.tr(), // JSON'dan "Profilim"
+          style: TextStyle(fontFamily: 'Nunito', color: Colors.black, fontWeight: FontWeight.w900, fontSize: 28),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
+        // Sağ üstte küçük dil butonu (Opsiyonel)
+        actions: [
+          TextButton(
+            onPressed: _dilDegistir,
+            child: Text(
+              isEnglish ? "TR" : "EN", 
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)
+            ),
+          )
+        ],
       ),
-      body: SingleChildScrollView(
+      body: Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Header Card
+            Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.blue.shade200, width: 3),
+              ),
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: AssetImage('lib/assets/images/dondurma.png'),
+              ),
+            ),
+            SizedBox(height: 20),
+            
+            Text(
+              userEmail,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            SizedBox(height: 10),
+            Text(
+              isEnglish ? "Food Explorer" : "Lezzet Kaşifi",
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+            ),
+            
+            SizedBox(height: 40),
+
+            // --- DİL DEĞİŞTİRME BUTONU ---
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 6,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 42,
-                        backgroundColor: Colors.blue.shade100,
-                        child: Icon(Icons.person, size: 48, color: Colors.blue.shade600),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              username,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontFamily: 'Nunito',
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+              child: ElevatedButton.icon(
+                onPressed: _dilDegistir,
+                icon: Icon(Icons.language, color: Colors.blue.shade700),
+                label: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'language'.tr() + ": " + (isEnglish ? "English" : "Türkçe"),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    Icon(Icons.swap_horiz, color: Colors.grey),
+                  ],
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade50,
+                  foregroundColor: Colors.black,
+                  minimumSize: Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 0,
                 ),
               ),
             ),
 
-            // Actions
+            // ÇIKIŞ YAP BUTONU
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 6,
-                    child: ListTile(
-                      leading: Icon(Icons.favorite, color: Colors.blue.shade300),
-                      title: const Text(
-                        'Favori Yemeklerim',
-                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900),
-                      ),
-                      subtitle: const Text('Kaydettiğiniz favorileri görüntüleyin'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          ScaleRoute(
-                              page: FavorilerSayfasi(yemekListesi: yemekListesi)),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 6,
-                    child: ListTile(
-                      leading: Icon(Icons.logout, color: Colors.red.shade400),
-                      title: const Text(
-                        'Çıkış Yap',
-                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900),
-                      ),
-                      subtitle: const Text('Hesabınızdan güvenli çıkış yapın'),
-                      onTap: () async {
-                        await Supabase.instance.client.auth.signOut();
-                        kullaniciGirisYapti=false;
-                        // Cache'i temizle
-                        FavoriCache.clear();
-                        Navigator.of(context).pushAndRemoveUntil(
-                          FadeRoute(page: const ProfilSayfasi()),
-                          (route) => false,
-                        );
-                      },
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: ElevatedButton.icon(
+                onPressed: _cikisYap,
+                icon: Icon(Icons.logout, color: Colors.white),
+                label: Text(
+                  'sign_out'.tr(), // JSON'dan "Çıkış Yap"
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade400,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  elevation: 5,
+                ),
               ),
             ),
-
-            const SizedBox(height: 24),
           ],
         ),
       ),
-            bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex, // aktif olan index
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index; // tıklanan index'i güncelle
-          });
-
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => Anasayfa()));
-              break;
-            case 1:
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => FiltrelemeSayfasi()));
-              break;
-            case 2:
-              Navigator.pushReplacement(
-                  context, MaterialPageRoute(builder: (_) => FavorilerSayfasi(yemekListesi: yemekListesi)));
-              break;
-            case 3:
-              // Kullanıcı zaten profil sayfasında, bu yüzden hiçbir şey yapmaya gerek yok
-              break;
-          }
-        },
+      
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue.shade300,
-        unselectedItemColor: const Color.fromARGB(255, 17, 19, 22),
-        selectedLabelStyle: const TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.w900),
-        unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.black),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Ana Sayfa'),
-          BottomNavigationBarItem(icon: Icon(Icons.filter_list_sharp), label: 'Filtrele'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoriler'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Giriş'),
+        selectedItemColor: Colors.blue.shade600,
+        unselectedItemColor: Colors.grey.shade600,
+        onTap: (index) {
+          if (index == _currentIndex) return;
+          if (index == 0) Navigator.pushReplacement(context, SlideLeftRoute(page: Anasayfa()));
+          else if (index == 1) Navigator.pushReplacement(context, SlideLeftRoute(page: FiltrelemeSayfasi()));
+          else if (index == 2) Navigator.pushReplacement(context, SlideLeftRoute(page: FavorilerSayfasi(yemekListesi: [])));
+        },
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'home'.tr()),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'search'.tr()),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'favorites'.tr()),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'profile'.tr()),
         ],
       ),
     );

@@ -1,0 +1,15 @@
+{
+    "welcome": "Welcome",
+    "welcome_desc": "Discover the best recipes from world cuisine!",
+    "login": "Login",
+    "signup": "Sign Up",
+    "email": "Email",
+    "password": "Password",
+    "my_profile": "My Profile",
+    "sign_out": "Sign Out",
+    "home": "Home",
+    "search": "Search",
+    "favorites": "Favorites",
+    "profile": "Profile",
+    "language": "Language"
+}

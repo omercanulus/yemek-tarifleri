@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:yemek_tarifleri/kayit_ekrani.dart';
 import 'package:yemek_tarifleri/kullanici_profili.dart';
-import 'package:yemek_tarifleri/main.dart';
+import 'package:yemek_tarifleri/main.dart'; // FavoriCache ve kullaniciGirisYapti için
 import 'package:yemek_tarifleri/animations.dart';
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 
@@ -14,67 +14,36 @@ class GirisEkrani extends StatefulWidget {
 }
 
 class _GirisEkraniState extends State<GirisEkrani> {
-
-  
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool isLoading = false;
 
   Future<void> signIn() async {
-    final supabase = Supabase.instance.client;
-
+    // Dil Kontrolü
+    bool isEnglish = Localizations.localeOf(context).languageCode == 'en';
+    
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen tüm alanları doldurun'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      _showError(isEnglish ? "Please fill in all fields" : "Lütfen tüm alanları doldurun");
       return;
     }
 
-    // Email formatını kontrol et
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Geçerli bir email adresi girin'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    // Loading göster
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(
-            color: Colors.blue,
-          ),
-        );
-      },
-    );
+    setState(() {
+      isLoading = true;
+    });
 
     try {
-      final response = await supabase.auth.signInWithPassword(
+      final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
       );
 
-      // Loading'i kapat
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context);
-
       if (response.user != null) {
         kullaniciGirisYapti = true;
         
-        // Giriş yapıldığında favorileri cache'le
+        // Giriş yapıldığında favorileri veritabanından çekip Cache'i güncelle
         try {
           final List<dynamic> rows = await Supabase.instance.client
               .from('favorites')
@@ -84,56 +53,49 @@ class _GirisEkraniState extends State<GirisEkrani> {
           final Set<String> favorites = rows.map((row) => row['yemek_ad'] as String).toSet();
           FavoriCache.updateFavorites(favorites);
         } catch (e) {
-          print('Giriş sonrası favori cache yüklenirken hata: $e');
+          print('Favori yükleme hatası: $e');
         }
         
-        // Başarı mesajı göster
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Giriş başarılı! Hoş geldiniz! '),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        // Giriş başarılıysa profil sayfasına git
-        Navigator.of(context).pushAndRemoveUntil(
-          FadeRoute(page: const KullaniciProfili()),
-          (route) => false,
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Giriş başarısız oldu. Lütfen bilgilerinizi kontrol edin.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(isEnglish ? "Login successful! Welcome!" : "Giriş başarılı! Hoş geldiniz!"),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Profil sayfasına git (Geri dönemesin)
+          Navigator.of(context).pushAndRemoveUntil(
+            FadeRoute(page: const KullaniciProfili()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
-      // Loading'i kapat
-      Navigator.pop(context);
-      
-      String errorMessage = 'Bir hata oluştu';
+      String errorMessage = isEnglish ? "An error occurred" : "Bir hata oluştu";
       
       if (e.toString().contains('Invalid login credentials')) {
-        errorMessage = 'Email veya şifre hatalı';
+        errorMessage = isEnglish ? "Invalid email or password" : "Email veya şifre hatalı";
       } else if (e.toString().contains('Email not confirmed')) {
-        errorMessage = 'Email adresinizi onaylayın';
-      } else if (e.toString().contains('Too many requests')) {
-        errorMessage = 'Çok fazla deneme. Lütfen bekleyin';
+        errorMessage = isEnglish ? "Please confirm your email address" : "Lütfen email adresinizi onaylayın";
       } else if (e.toString().contains('Network')) {
-        errorMessage = 'İnternet bağlantınızı kontrol edin';
+        errorMessage = isEnglish ? "Check your internet connection" : "İnternet bağlantınızı kontrol edin";
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      _showError(errorMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
+  }
+  
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
@@ -145,120 +107,151 @@ class _GirisEkraniState extends State<GirisEkrani> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-          leading: IconButton(
-              onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const ProfilSayfasi()),
-                  (route) => false,
-                );
-              },
-              icon: Icon(Icons.arrow_back_ios, color: Colors.black))),
-      body: Container(
-          height: MediaQuery.of(context).size.height,
-          width: double.infinity,
-          child: Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Expanded(
-                child: Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              Column(
-                children: [
-                  Text(
-                    'Giriş Yap',
-                    style: TextStyle(
-                        fontFamily: 'Nunito',
-                        fontSize: 35,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black),
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    'Hesabına Giriş Yap',
-                    style: TextStyle(fontFamily: 'Nunito', fontSize: 16, color: Colors.grey.shade700),
-                  )
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 40),
-                child: Column(
-                  children: [
-                    // 4. inputFile içine controller gönderiyoruz
-                    inputFile(label: 'E-posta', controller: emailController),
-                    inputFile(label: 'Şifre', obscureText: true, controller: passwordController)
-                  ],
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 40),
-                child: Container(
-                  decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(50), border: Border.all(color: Colors.blue.shade300)),
-                  child: MaterialButton(
-                    minWidth: double.infinity,
-                    height: 60,
-                    color: Colors.blue.shade200,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(60)),
-                    // 3. signIn fonksiyonunu burada çağırıyoruz
-                    onPressed: signIn,
-                    child: Text(
-                      'Giriş Yap',
-                      style: TextStyle(
-                          fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 25, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Bir hesabınız yok mu?'),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(context, SlideUpRoute(page: KayitEkrani()));
-                    },
-                    child: Text(
-                      'Kaydolun',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade600),
-                    ),
-                  )
-                ],
-              ),
-              Container(
-                padding: EdgeInsets.only(top: 100),
-                height: 200,
-                decoration: BoxDecoration(
-                    image: DecorationImage(
-                        image: AssetImage('lib/assets/images/dondurma.png'), fit: BoxFit.fitHeight)),
-              )
-            ]))
-          ])),
+    bool isEnglish = Localizations.localeOf(context).languageCode == 'en';
 
+    return Scaffold(
+      resizeToAvoidBottomInset: false, // Klavye açılınca tasarım bozulmasın
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          onPressed: () {
+            // Geri butonu direkt ana Profil (Welcome) sayfasına atsın
+             Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const ProfilSayfasi()),
+              (route) => false,
+            );
+          },
+          icon: Icon(Icons.arrow_back_ios, size: 20, color: Colors.black),
+        ),
+      ),
+      body: SizedBox(
+        height: MediaQuery.of(context).size.height,
+        width: double.infinity,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: <Widget>[
+                  Column(
+                    children: <Widget>[
+                      Text(
+                        isEnglish ? "Login" : "Giriş Yap",
+                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, fontFamily: 'Nunito'),
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        isEnglish ? "Login to your account" : "Hesabına giriş yap",
+                        style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+                      )
+                    ],
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Column(
+                      children: <Widget>[
+                        inputFile(label: isEnglish ? "Email" : "E-posta", controller: emailController),
+                        inputFile(label: isEnglish ? "Password" : "Şifre", obscureText: true, controller: passwordController)
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Container(
+                      padding: EdgeInsets.only(top: 3, left: 3),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border(
+                          bottom: BorderSide(color: Colors.black),
+                          top: BorderSide(color: Colors.black),
+                          left: BorderSide(color: Colors.black),
+                          right: BorderSide(color: Colors.black),
+                        ),
+                      ),
+                      child: MaterialButton(
+                        minWidth: double.infinity,
+                        height: 60,
+                        onPressed: isLoading ? null : signIn,
+                        color: Colors.blue.shade200,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+                        child: isLoading 
+                          ? CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              isEnglish ? "Login" : "Giriş Yap",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(isEnglish ? "Don't have an account? " : "Bir hesabın yok mu? "),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(context, SlideUpRoute(page: KayitEkrani()));
+                        },
+                        child: Text(
+                          isEnglish ? "Sign up" : "Kaydolun",
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+                        ),
+                      )
+                    ],
+                  ),
+                  Container(
+                    padding: EdgeInsets.only(top: 100),
+                    height: 200,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('lib/assets/images/dondurma.png'),
+                        fit: BoxFit.fitHeight,
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            )
+          ],
+        ),
+      ),
     );
   }
 }
 
-// 1. inputFile widget'ına controller parametresi eklenmeli
+// inputFile fonksiyonu burada da lazım olabilir, ama zaten Kayıt ekranıyla aynı dosyada 
+// tanımlı değilse en alta eklemek gerekir. Yukarıdaki aynı inputFile'ı buraya da ekle:
 Widget inputFile({required String label, bool obscureText = false, required TextEditingController controller}) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
+    children: <Widget>[
       Text(
         label,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: Colors.black87),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: Colors.black87,
+        ),
       ),
-      const SizedBox(height: 5),
+      SizedBox(height: 5),
       TextField(
         controller: controller,
         obscureText: obscureText,
         decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
+          contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 10),
           enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade400)),
           border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade400)),
-          focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
+          focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue.shade400)),
         ),
       ),
-      const SizedBox(height: 10),
+      SizedBox(height: 10),
     ],
   );
 }

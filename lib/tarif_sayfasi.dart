@@ -27,6 +27,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
     _syncFavoriteFromDatabase();
   }
 
+  // Veritabanından favori durumunu kontrol et
   Future<void> _syncFavoriteFromDatabase() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -34,11 +35,13 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
         return;
       }
 
+      // Not: Veritabanında 'yemek_ad' yerine artık benzersiz ID kullanmak daha doğrudur
+      // ama şimdilik mevcut yapını bozmadan yemek adıyla devam ediyoruz.
       final response = await Supabase.instance.client
           .from('favorites')
           .select('id')
           .eq('user_id', user.id)
-          .eq('yemek_ad', widget.yemek.ad)
+          .eq('yemek_ad', widget.yemek.ad) // Türkçe adını ID niyetine kullanıyoruz
           .maybeSingle();
 
       final isFav = response != null;
@@ -60,28 +63,17 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
       if (makeFavorite) {
         await Supabase.instance.client.from('favorites').insert({
           'user_id': user.id,
-          'yemek_ad': widget.yemek.ad,
+          'yemek_ad': widget.yemek.ad, // Favorilere her zaman Türkçe adıyla kaydedelim ki karışmasın
         });
+        
         // Cache'i güncelle
         FavoriCache.toggleFavorite(widget.yemek.ad, true);
         
-        // Başarı mesajı göster
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${widget.yemek.ad} favorilere eklendi! '),
+              content: Text('${widget.yemek.getAd(context)} favorilere eklendi! '),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-              action: SnackBarAction(
-                label: 'Favorilerim',
-                textColor: Colors.white,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    ScaleRoute(page: FavorilerSayfasi(yemekListesi: yemekListesi)),
-                  );
-                },
-              ),
             ),
           );
         }
@@ -91,45 +83,36 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
             .delete()
             .eq('user_id', user.id)
             .eq('yemek_ad', widget.yemek.ad);
+            
         // Cache'i güncelle
         FavoriCache.toggleFavorite(widget.yemek.ad, false);
         
-        // Başarı mesajı göster
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${widget.yemek.ad} favorilerden çıkarıldı'),
+              content: Text('${widget.yemek.getAd(context)} favorilerden çıkarıldı'),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 2),
             ),
           );
         }
       }
     } catch (e) {
-      // Hata olursa UI durumunu geri al
       if (mounted) {
         setState(() {
           widget.yemek.isFavorite = !makeFavorite;
         });
-        
-        // Hata mesajı göster
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Bir hata oluştu. Lütfen tekrar deneyin.'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
+          SnackBar(content: Text('Hata: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  void _nextStep() {
-    if (currentStep < widget.yemek.tarifAdimlari.length - 1) {
+  void _nextStep(List<String> adimlar) {
+    if (currentStep < adimlar.length - 1) {
       setState(() {
         currentStep++;
       });
-      // Scroll pozisyonunu sıfırla
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Scrollable.ensureVisible(
           context,
@@ -150,6 +133,12 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
 
   @override
   Widget build(BuildContext context) {
+    // Dil kontrolü ile doğru listeleri alıyoruz
+    final displayMalzemeler = widget.yemek.getMalzemeler(context);
+    final displayAdimlar = widget.yemek.getAdimlar(context);
+    final displayAd = widget.yemek.getAd(context);
+    final displayTarif = widget.yemek.getTarif(context);
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(onPressed: () {
@@ -194,7 +183,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
             },
           )
         ],
-        title: Text(widget.yemek.ad,
+        title: Text(displayAd,
         style: TextStyle(fontSize:20, fontFamily: 'Nunito', color:  Colors.black, fontWeight: FontWeight.w900),
         ),
          backgroundColor: Colors.white
@@ -206,39 +195,27 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
             child: Column(             
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Yemek Fotoğrafı
+                // Yemek Fotoğrafı (Supabase'den veya Asset'ten)
                 SizedBox(
                   height: 250,
                   width: double.infinity,
                   child: Stack(
                     children: [
-                                                                     ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final dpr = MediaQuery.of(context).devicePixelRatio;
-                              final targetW = (constraints.maxWidth * dpr).round();
-                              return Image.asset(
-                                widget.yemek.foto,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                                cacheWidth: targetW,
-                                filterQuality: FilterQuality.low,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey.shade200,
-                                    child: Icon(
-                                      Icons.restaurant,
-                                      size: 80,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset(
+                          widget.yemek.foto,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey.shade200,
+                              child: Icon(Icons.restaurant, size: 80, color: Colors.grey.shade400),
+                            );
+                          },
                         ),
+                      ),
                       Container(                     
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
@@ -256,7 +233,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                         bottom: 12,
                         left: 12,
                         child: Text(
-                          widget.yemek.ad,
+                          displayAd,
                           style: TextStyle(
                             fontFamily: 'Nunito',
                             fontSize: 26,
@@ -288,20 +265,12 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Hazırlama Süresi',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              'Hazırlama', // Burayı da çevirebilirsin istersen
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
                             ),
                             Text(
-                              '${widget.yemek.hazirlamaSuresi} dakika',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
+                              '${widget.yemek.hazirlamaSuresi} dk',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
                             ),
                           ],
                         ),
@@ -314,20 +283,12 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Pişirme Süresi',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              'Pişirme',
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
                             ),
                             Text(
-                              '${widget.yemek.pisirmeSuresi} dakika',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange.shade700,
-                              ),
+                              '${widget.yemek.pisirmeSuresi} dk',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade700),
                             ),
                           ],
                         ),
@@ -341,11 +302,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                 // Malzemeler
                 Text(
                   'Malzemeler:',
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: TextStyle(fontFamily: 'Nunito', fontSize: 20, fontWeight: FontWeight.w900),
                 ),
                 SizedBox(height: 8),
                 Container(
@@ -355,7 +312,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    widget.yemek.malzemeler.join('\n'),
+                    displayMalzemeler.join('\n'), // DİLE GÖRE LİSTE
                     style: TextStyle(fontSize: 16, height: 1.5),
                   ),
                 ),
@@ -367,11 +324,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                   children: [
                     Text(
                       'Tarif:',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: TextStyle(fontSize: 20, fontFamily: 'Nunito', fontWeight: FontWeight.w900),
                     ),
                     Spacer(),
                     if (!isStepByStepMode)
@@ -381,7 +334,6 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                             isStepByStepMode = true;
                             currentStep = 0;
                           });
-                          // Adım adım moduna geçildiğinde alt bölüme kaydır
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             _scrollController.animateTo(
                               _scrollController.position.maxScrollExtent,
@@ -392,9 +344,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                         },
                         icon: Icon(Icons.format_list_numbered, size: 18),
                         label: Text('Adım Adım'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.blue.shade600,
-                        ),
+                        style: TextButton.styleFrom(foregroundColor: Colors.blue.shade600),
                       ),
                   ],
                 ),
@@ -409,13 +359,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.shade200,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.grey.shade200, blurRadius: 8, offset: Offset(0, 2))],
                     ),
                     child: Column(
                       children: [
@@ -424,34 +368,23 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                           children: [
                             Container(
                               padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade600,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                              decoration: BoxDecoration(color: Colors.blue.shade600, borderRadius: BorderRadius.circular(20)),
                               child: Text(
-                                'Adım ${currentStep + 1}/${widget.yemek.tarifAdimlari.length}',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                'Adım ${currentStep + 1}/${displayAdimlar.length}',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                               ),
                             ),
                             Spacer(),
                             Text(
-                              '${((currentStep + 1) / widget.yemek.tarifAdimlari.length * 100).round()}%',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade600,
-                              ),
+                              '${((currentStep + 1) / displayAdimlar.length * 100).round()}%',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue.shade600),
                             ),
                           ],
                         ),
                         SizedBox(height: 20),
                         
-                        // İlerleme Çubuğu
                         LinearProgressIndicator(
-                          value: (currentStep + 1) / widget.yemek.tarifAdimlari.length,
+                          value: (currentStep + 1) / displayAdimlar.length,
                           backgroundColor: Colors.grey.shade200,
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
                         ),
@@ -459,17 +392,13 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
 
                         // Adım İçeriği
                         Text(
-                          widget.yemek.tarifAdimlari[currentStep],
-                          style: TextStyle(
-                            fontSize: 18,
-                            height: 1.6,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          displayAdimlar.isNotEmpty ? displayAdimlar[currentStep] : "Adım bulunamadı",
+                          style: TextStyle(fontSize: 18, height: 1.6, fontWeight: FontWeight.w500),
                           textAlign: TextAlign.center,
                         ),
                         SizedBox(height: 30),
 
-                                                 // Navigasyon Butonları
+                         // Navigasyon Butonları
                          Row(
                            children: [
                              Expanded(
@@ -487,24 +416,18 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                              SizedBox(width: 16),
                              Expanded(
                                child: ElevatedButton.icon(
-                                 onPressed: currentStep < widget.yemek.tarifAdimlari.length - 1 
-                                   ? _nextStep 
+                                 onPressed: currentStep < displayAdimlar.length - 1 
+                                   ? () => _nextStep(displayAdimlar)
                                    : () {
                                        setState(() {
                                          isStepByStepMode = false;
                                          currentStep = 0;
                                        });
                                      },
-                                 icon: Icon(currentStep < widget.yemek.tarifAdimlari.length - 1 
-                                   ? Icons.arrow_forward 
-                                   : Icons.check),
-                                 label: Text(currentStep < widget.yemek.tarifAdimlari.length - 1 
-                                   ? 'Sonraki' 
-                                   : 'Tamamlandı'),
+                                 icon: Icon(currentStep < displayAdimlar.length - 1 ? Icons.arrow_forward : Icons.check),
+                                 label: Text(currentStep < displayAdimlar.length - 1 ? 'Sonraki' : 'Tamamlandı'),
                                  style: ElevatedButton.styleFrom(
-                                   backgroundColor: currentStep < widget.yemek.tarifAdimlari.length - 1 
-                                     ? Colors.blue.shade600 
-                                     : Colors.green.shade600,
+                                   backgroundColor: currentStep < displayAdimlar.length - 1 ? Colors.blue.shade600 : Colors.green.shade600,
                                    foregroundColor: Colors.white,
                                    padding: EdgeInsets.symmetric(vertical: 12),
                                  ),
@@ -524,7 +447,7 @@ class _TarifSayfasiState extends State<TarifSayfasi> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      widget.yemek.tarif,
+                      displayTarif, // DİLE GÖRE TARİF
                       style: TextStyle(fontSize: 16, height: 1.6),
                     ),
                   ),

@@ -1,266 +1,174 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart';
 import 'package:yemek_tarifleri/filtreleme_sayfasi.dart';
-import 'package:yemek_tarifleri/kullanici_profili.dart';
 import 'package:yemek_tarifleri/giris_ekrani.dart';
-import 'package:yemek_tarifleri/yemek_listesi.dart';
-import 'yemek.dart';
-import 'tarif_sayfasi.dart';
-import 'main.dart';
-import 'animations.dart';
+import 'package:yemek_tarifleri/kullanici_profili.dart';
+import 'package:yemek_tarifleri/tarif_sayfasi.dart';
+import 'package:yemek_tarifleri/yemek.dart';
+import 'package:yemek_tarifleri/animations.dart'; // Animasyonlar için
+import 'main.dart'; // kullaniciGirisYapti ve FavoriCache için
 
 class FavorilerSayfasi extends StatefulWidget {
   final List<Yemek> yemekListesi;
-
-  FavorilerSayfasi({required this.yemekListesi});
+  const FavorilerSayfasi({super.key, required this.yemekListesi});
 
   @override
-  _FavorilerSayfasiState createState() => _FavorilerSayfasiState();
+  State<FavorilerSayfasi> createState() => _FavorilerSayfasiState();
 }
 
 class _FavorilerSayfasiState extends State<FavorilerSayfasi> {
-  int _currentIndex=2;
-  List<Yemek> favoriYemekler = [];
-  bool isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-  }
-
-  Future<void> _loadFavorites() async {
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null || !kullaniciGirisYapti) {
-        setState(() {
-          favoriYemekler = [];
-          isLoading = false;
-        });
-        return;
-      }
-
-      // Önce cache'den favorileri al
-      Set<String> favoriteNames = FavoriCache.getFavorites();
-      
-      // Eğer cache geçerli değilse veritabanından güncelle
-      if (!FavoriCache.isCacheValid()) {
-        try {
-          final List<dynamic> rows = await Supabase.instance.client
-              .from('favorites')
-              .select('yemek_ad')
-              .eq('user_id', user.id);
-
-          favoriteNames = rows.map((row) => row['yemek_ad'] as String).toSet();
-          FavoriCache.updateFavorites(favoriteNames);
-        } catch (e) {
-          print('Favoriler güncellenirken hata: $e');
-          // Hata durumunda cache'deki veriyi kullan
-        }
-      }
-
-      final selected = widget.yemekListesi
-          .where((yemek) => favoriteNames.contains(yemek.ad))
-          .toList();
-
-      // UI tutarlılığı için isFavorite işaretlerini güncelle
-      for (final yemek in widget.yemekListesi) {
-        yemek.isFavorite = favoriteNames.contains(yemek.ad);
-      }
-
-      if (mounted) {
-        setState(() {
-          favoriYemekler = selected;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          favoriYemekler = [];
-          isLoading = false;
-        });
-      }
-    }
-  }
+  int _currentIndex = 2; // Favoriler sayfası 2. index
 
   @override
   Widget build(BuildContext context) {
+    // Favori olan yemekleri filtrele
+    // Not: Veritabanından gelen listedeki 'isFavorite' durumu veya Cache sistemi kullanılabilir
+    final favoriYemekler = widget.yemekListesi.where((yemek) {
+      // Hem nesne üzerindeki durumu hem de Cache'i kontrol edelim (garanti olsun)
+      return yemek.isFavorite || FavoriCache.isFavorite(yemek.ad);
+    }).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
         automaticallyImplyLeading: false,
-        title: Text('Favori Tarifler',
-        style: TextStyle(
-          fontFamily: 'Nunito',
-          fontWeight: FontWeight.w900),
+        title: Text(
+          'Favorilerim',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            color: Colors.black,
+            fontWeight: FontWeight.w900,
+            fontSize: 28,
+          ),
         ),
+        backgroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : favoriYemekler.isEmpty
-              ? const Center(child: Text('Henüz favori yemek yok.'))
-          : Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: GridView.builder(
-                itemCount: favoriYemekler.length,
-                cacheExtent: 1000, // Daha fazla öğe cache'le
-                addAutomaticKeepAlives: false, // Gereksiz widget'ları dispose et
-                addRepaintBoundaries: false, // Repaint optimizasyonu
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // bi sutunda 2 yemek var
-                  crossAxisSpacing: 10,//yatay bosluk
-                  mainAxisSpacing: 10,//dikey bosluk
-                  childAspectRatio: 1, // Kart oranı
-                ),
-                itemBuilder: (context, index) {
-                  final favoriYemek = favoriYemekler[index];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        ScaleRoute(
-                          page: TarifSayfasi(yemek: favoriYemek),
-                        ),
-                      );
-                    },
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      elevation: 14,
-                      clipBehavior: Clip.antiAliasWithSaveLayer,
-                      child: Stack(
+      body: favoriYemekler.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.favorite_border, size: 80, color: Colors.grey.shade300),
+                  SizedBox(height: 16),
+                  Text(
+                    "Henüz favori eklemedin",
+                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: favoriYemekler.length,
+              itemBuilder: (context, index) {
+                final yemek = favoriYemekler[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    elevation: 5,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          SlideRightRoute(page: TarifSayfasi(yemek: yemek)),
+                        ).then((_) {
+                          // Geri dönüldüğünde sayfayı yenile (belki favoriden çıkarmıştır)
+                          setState(() {});
+                        });
+                      },
+                      child: Row(
                         children: [
-                          Positioned.fill(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final dpr = MediaQuery.of(context).devicePixelRatio;
-                                final targetW = (constraints.maxWidth * dpr).round();
-                                return Image.asset(
-                                  favoriYemek.foto,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: targetW,
-                                  filterQuality: FilterQuality.low,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey.shade200,
-                                      child: Icon(
-                                        Icons.restaurant,
-                                        size: 50,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    );
-                                  },
+                          // Sol taraf: Resim
+                          ClipRRect(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(15),
+                              bottomLeft: Radius.circular(15),
+                            ),
+                            child: Image.asset(
+                              yemek.foto,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 120,
+                                  height: 120,
+                                  color: Colors.grey.shade200,
+                                  child: Icon(Icons.restaurant, color: Colors.grey),
                                 );
                               },
                             ),
                           ),
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                  vertical: 6, horizontal: 8),
-                              color: Colors.white.withOpacity(0.9),
-                              child: Text(
-                                favoriYemek.ad,
-                                style: TextStyle(
-                                  fontFamily: 'Nunito',
-                                  color: Colors.black,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                                textAlign: TextAlign.center,
+                          // Sağ taraf: Bilgiler
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    yemek.getAd(context), // DİLE GÖRE İSİM
+                                    style: TextStyle(
+                                      fontFamily: 'Nunito',
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.timer, size: 16, color: Colors.grey),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        "${yemek.hazirlamaSuresi + yemek.pisirmeSuresi} dk",
+                                        style: TextStyle(color: Colors.grey.shade700),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                           ),
+                          // Favori İkonu (Kaldırmak için)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: Icon(Icons.favorite, color: Colors.red),
+                          )
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-            bottomNavigationBar: BottomNavigationBar(
-              currentIndex: _currentIndex, // aktif olan index
-              onTap: (index) {
-              setState(() {
-              _currentIndex = index; // tıklanan index'i güncelle
-          });
-
-           switch (index) {
-    case 0:
-    Navigator.pushReplacement(
-      context,
-     SlideRightRoute(page: Anasayfa()),
-             );
-      break;
-    case 1:
-      Navigator.pushReplacement(
-        context,
-        SlideRightRoute(page: FiltrelemeSayfasi()),
-      );
-      break;
-    case 2:
-      Navigator.pushReplacement(
-        context,
-        SlideRightRoute(page: FavorilerSayfasi(yemekListesi: yemekListesi,)),
-      );
-      break;
-    case 3:
-      if (kullaniciGirisYapti) {
-        Navigator.pushReplacement(
-          context,
-          SlideUpRoute(page: const KullaniciProfili()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          SlideUpRoute(page: const GirisEkrani()),
-        );
-      }
-      break;
-  }
-        },
-        
-              type: BottomNavigationBarType.fixed,
-              selectedItemColor:  Colors.blue.shade200,
-              unselectedItemColor:   Color.fromARGB(255, 17, 19, 22),
-              selectedLabelStyle: TextStyle(
-                color: Colors.black,
-                fontSize: 15,
-                fontWeight: FontWeight.w900
-              ),
-              unselectedLabelStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: Colors.black
-              ),
-              items:[ 
-                BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Ana Sayfa'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.filter_list_sharp),
-                  label: 'Filtrele'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.favorite, color: Colors.red,),
-                  label:'Favoriler',
                   ),
-                 BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label:'Giriş')
-                   
+                );
+              },
+            ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blue.shade600,
+        unselectedItemColor: Colors.grey.shade600,
+        onTap: (index) {
+          if (index == _currentIndex) return;
 
-              ],
+          if (index == 0) {
+            Navigator.pushReplacement(context, SlideLeftRoute(page: Anasayfa()));
+          } else if (index == 1) {
+            Navigator.pushReplacement(context, SlideLeftRoute(page: FiltrelemeSayfasi()));
+          } else if (index == 3) {
+            if (kullaniciGirisYapti) {
+              Navigator.pushReplacement(context, SlideUpRoute(page: const KullaniciProfili()));
+            } else {
+              Navigator.pushReplacement(context, SlideUpRoute(page: const GirisEkrani()));
+            }
+          }
+        },
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Ara'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoriler'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Giriş'),
+        ],
       ),
-   
-
     );
   }
 }

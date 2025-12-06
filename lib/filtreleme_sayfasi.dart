@@ -1,62 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:yemek_tarifleri/tarif_sayfasi.dart';
+import 'package:yemek_tarifleri/yemek.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart';
 import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
-import 'package:yemek_tarifleri/kullanici_profili.dart';
 import 'package:yemek_tarifleri/giris_ekrani.dart';
-import 'yemek_listesi.dart';
-import 'yemek.dart';
-import 'tarif_sayfasi.dart';
-import 'main.dart';
-import 'animations.dart';
+import 'package:yemek_tarifleri/kullanici_profili.dart';
+import 'package:yemek_tarifleri/animations.dart';
+import 'main.dart'; // kullaniciGirisYapti değişkeni için
 
 class FiltrelemeSayfasi extends StatefulWidget {
+  const FiltrelemeSayfasi({super.key});
+
   @override
-  _FiltrelemeSayfasiState createState() => _FiltrelemeSayfasiState();
+  State<FiltrelemeSayfasi> createState() => _FiltrelemeSayfasiState();
 }
 
 class _FiltrelemeSayfasiState extends State<FiltrelemeSayfasi> {
-  List<String> secilenMalzemeler = [];
-  List<Yemek> filtrelenmisYemekler = [];
-  List<String> tumMalzemeler = [];
-  List<String> gosterilenMalzemeler = [];
+  String aramaMetni = '';
+  List<Yemek> tumYemekler = [];
+  List<Yemek> filtreliYemekler = [];
+  bool veriYukleniyor = true;
+  int _currentIndex = 1; // Filtreleme sayfası 1. index
 
-  String aramaKelimesi = '';
-  bool filtrelendi = false;
-   int _currentIndex=1;
   @override
   void initState() {
     super.initState();
-    tumMalzemeler = List<String>.from(
-      yemekListesi
-          .map((yemek) =>//her yemek icin ayni islem yapiliyor
-              yemek.yazilacakMalzemeler.map((m) => m.toLowerCase().trim()).toSet())
-          .expand((set) => set)
-          .toSet(),
-    );
-
-    gosterilenMalzemeler = List.from(tumMalzemeler);
+    _yemekleriGetir();
   }
 
-  void filtrele() {
+  // Verileri Supabase'den çek
+  Future<void> _yemekleriGetir() async {
+    try {
+      final response = await Supabase.instance.client.from('yemekler').select();
+
+      setState(() {
+        tumYemekler = (response as List).map((item) => Yemek.fromMap(item)).toList();
+        filtreliYemekler = tumYemekler;
+        veriYukleniyor = false;
+      });
+    } catch (e) {
+      print("Hata: $e");
+      setState(() {
+        veriYukleniyor = false;
+      });
+    }
+  }
+
+void _filtrele(String girilen) {
     setState(() {
-      filtrelenmisYemekler = yemekListesi.where((yemek) {
-        final yemekMalzemeleri = yemek.yazilacakMalzemeler
-            .map((m) => m.toLowerCase().trim())
-            .toList();
-        return secilenMalzemeler
-            .every((malzeme) => yemekMalzemeleri.contains(malzeme));
+      aramaMetni = girilen.toLowerCase();
+      
+      // --- DEBUG BAŞLANGIÇ (Dedektif Modu) ---
+      print("----------------------------------");
+      print("Aranan Kelime: '$aramaMetni'");
+      
+      filtreliYemekler = tumYemekler.where((yemek) {
+        final adTr = yemek.ad.toLowerCase();
+        final adEn = yemek.adEn.toLowerCase();
+        
+        // Eşleşme var mı kontrol et
+        bool trEslesti = adTr.contains(aramaMetni);
+        bool enEslesti = adEn.contains(aramaMetni);
+
+        // Eğer aranan kelime 'las' ise ve İngilizcesi 'Lasagna' ise bunu yakalamalı
+        // Bunu terminalde görmek için yazdırıyoruz:
+        if (aramaMetni.length > 2 && (adEn.contains("las") || adTr.contains("laz"))) {
+           print("Yemek: ${yemek.ad} | İngilizcesi: '${yemek.adEn}'");
+           print("Kontrol: '$adEn' içinde '$aramaMetni' var mı? -> $enEslesti");
+        }
+
+        return trEslesti || enEslesti;
       }).toList();
-
-      filtrelendi = true;
-    });
-  }
-
-  void aramaYap(String kelime) {
-    setState(() {
-      aramaKelimesi = kelime.toLowerCase();
-      gosterilenMalzemeler = tumMalzemeler
-          .where((m) => m.contains(aramaKelimesi))
-          .toList();
+      print("----------------------------------");
+      // --- DEBUG BİTİŞ ---
     });
   }
 
@@ -65,261 +82,130 @@ class _FiltrelemeSayfasiState extends State<FiltrelemeSayfasi> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false, // Geri butonunu kaldır
         backgroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        title: Text("Malzemeye Göre Filtrele",
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900)),
+        elevation: 0,
+        title: Text(
+          'Ara & Keşfet',
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            color: Colors.black,
+            fontWeight: FontWeight.w900,
+            fontSize: 28,
+          ),
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
         child: Column(
           children: [
-            if (!filtrelendi) ...[
-              TextField(
-                decoration:InputDecoration(
-            hintText:'Malzeme ara...' ,
-            prefixIcon: Icon(Icons.search),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(100),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(
-                color: Colors.white, 
-                width: 5.0
-              ),
-              borderRadius: BorderRadius.circular(100)
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(
-              color:  Colors.white, //  tıklanmamisken
-              width: 3,
-              ),
-              borderRadius: BorderRadius.circular(100),
-              ),
-            filled: true,
-          fillColor: Colors.white
-          ),
-                onChanged: aramaYap,
-              ),
-              const SizedBox(height: 20),
-              Column(
-                children:[ 
-                  Text('Malzemelerinizi seçin ve yapılabilecek yemekleri görün.',
-                  style: TextStyle(fontWeight: FontWeight.bold),),
-                  
-                  SizedBox(height:0),
-                  /*Text(
-                  '',
-                  style: TextStyle(fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade500),
-                ),*/
-                ]
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 6.0,
-                    runSpacing: 6.0,
-                    children: gosterilenMalzemeler.map((malzeme) {
-                      final secili = secilenMalzemeler.contains(malzeme);
-                      return FilterChip(
-                        label: Text(malzeme),
-                        selected: secili,
-                        onSelected: (bool value) {
-                          setState(() {
-                            if (value) {
-                              secilenMalzemeler.add(malzeme);
-                            } else {
-                              secilenMalzemeler.remove(malzeme);
-                            }
-                          });
-                        },
-                        selectedColor: Colors.blue.shade200,
-                        checkmarkColor: Colors.black,
-                        labelStyle: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: secili ? Colors.black : null,
-                        ),
-                      );
-                    }).toList(),
+            // Arama Kutusu
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TextField(
+                  onChanged: _filtrele,
+                  decoration: InputDecoration(
+                    hintText: 'Yemek, tatlı veya malzeme ara...',
+                    prefixIcon: Icon(Icons.search, color: Colors.blue.shade400),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                   ),
                 ),
               ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black
-                ),
-                onPressed: filtrele,
-                icon: Icon(Icons.filter_list,
-                color: Colors.blue.shade300,),
-                label: Text("Yemekleri Filtrele",
-                style: TextStyle(
-                  color: Colors.blue.shade200,
-                  fontWeight: FontWeight.w700
-                ),
-                )
-              ),
-            ] else ...[
-              // Filtredenn sonra ekran
-              if (filtrelenmisYemekler.isEmpty)
-                Text("Uygun yemek bulunamadı.")
-              else
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: filtrelenmisYemekler.length,
-                    cacheExtent: 800,
-                    addAutomaticKeepAlives: false,
-                    addRepaintBoundaries: false,
-                    itemExtent: 84, // ListTile yaklaşık yükseklik + margin
-                    itemBuilder: (context, index) {
-                      final gosterilenYemek = filtrelenmisYemekler[index];
-                      return Card(
-                        elevation: 3,
-                        margin: EdgeInsets.symmetric(vertical: 8),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.all(10),
-                          leading: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final dpr = MediaQuery.of(context).devicePixelRatio;
-                                final targetW = (60 * dpr).round();
-                                return Image.asset(
-                                  gosterilenYemek.foto,
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: targetW,
-                                  filterQuality: FilterQuality.low,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      width: 60,
-                                      height: 60,
-                                      color: Colors.grey.shade200,
-                                      child: Icon(
-                                        Icons.restaurant,
-                                        size: 30,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
+            ),
+
+            // Sonuç Listesi
+            Expanded(
+              child: veriYukleniyor
+                  ? Center(child: CircularProgressIndicator())
+                  : filtreliYemekler.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.search_off, size: 60, color: Colors.grey.shade300),
+                              SizedBox(height: 10),
+                              Text("Sonuç bulunamadı", style: TextStyle(color: Colors.grey)),
+                            ],
                           ),
-                          title: Text(gosterilenYemek.ad,
-                              style: TextStyle(fontWeight: FontWeight.bold)),
-                          trailing: Icon(Icons.arrow_forward_ios, size: 16,
-                          color: Colors.black,
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              FadeRoute(
-                                page: TarifSayfasi(yemek: gosterilenYemek),
+                        )
+                      : ListView.builder(
+                          itemCount: filtreliYemekler.length,
+                          itemBuilder: (context, index) {
+                            final yemek = filtreliYemekler[index];
+                            return Card(
+                              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              elevation: 3,
+                              child: ListTile(
+                                contentPadding: EdgeInsets.all(10),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    SlideRightRoute(page: TarifSayfasi(yemek: yemek)),
+                                  );
+                                },
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.asset(
+                                    yemek.foto,
+                                    width: 80,
+                                    height: 80,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        Container(width: 80, height: 80, color: Colors.grey.shade200, child: Icon(Icons.restaurant)),
+                                  ),
+                                ),
+                                title: Text(
+                                  yemek.getAd(context), // DİLE GÖRE İSİM
+                                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.bold, fontSize: 18),
+                                ),
+                                subtitle: Text(
+                                  "${yemek.hazirlamaSuresi + yemek.pisirmeSuresi} dk • ${yemek.getMalzemeler(context).length} malzeme",
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                                trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue.shade300),
                               ),
                             );
                           },
                         ),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    filtrelendi = false;
-                    secilenMalzemeler.clear();
-                    filtrelenmisYemekler.clear();
-                    gosterilenMalzemeler = List.from(tumMalzemeler);
-                  });
-                },
-                icon: Icon(Icons.refresh),
-                label: Text("Yeni Filtreleme Yap",
-                style: TextStyle(fontWeight: FontWeight.w700),),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.blue.shade200),
-              ),
-            ]
+            ),
           ],
         ),
       ),
+      
+      // Bottom Navigation Bar (Ana Sayfa ile aynı mantıkta)
       bottomNavigationBar: BottomNavigationBar(
-              currentIndex: _currentIndex, // aktif olan index
-              onTap: (index) {
-              setState(() {
-              _currentIndex = index; // tıklanan index'i güncelle
-          });
-
-           switch (index) {
-    case 0:
-    Navigator.pushReplacement(
-      context,
-     SlideRightRoute(page: const Anasayfa()),
-             );
-      break;
-    case 1:
-      Navigator.pushReplacement(
-        context,
-        SlideRightRoute(page: FiltrelemeSayfasi()),
-      );
-      break;
-    case 2:
-      Navigator.pushReplacement(
-        context,
-        SlideRightRoute(page: FavorilerSayfasi(yemekListesi: yemekListesi,)),
-      );
-      break;
-    case 3:
-      if (kullaniciGirisYapti) {
-        Navigator.pushReplacement(
-          context,
-          SlideUpRoute(page: const KullaniciProfili()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          SlideUpRoute(page: const GirisEkrani()),
-        );
-      }
-      break;
-  }
+        currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blue.shade600,
+        unselectedItemColor: Colors.grey.shade600,
+        onTap: (index) {
+          if (index == _currentIndex) return;
+          
+          if (index == 0) {
+            Navigator.pushReplacement(context, SlideLeftRoute(page: Anasayfa()));
+          } else if (index == 2) {
+            Navigator.pushReplacement(context, SlideRightRoute(page: FavorilerSayfasi(yemekListesi: tumYemekler)));
+          } else if (index == 3) {
+            if (kullaniciGirisYapti) {
+              Navigator.pushReplacement(context, SlideUpRoute(page: const KullaniciProfili()));
+            } else {
+              Navigator.pushReplacement(context, SlideUpRoute(page: const GirisEkrani()));
+            }
+          }
         },
-              type: BottomNavigationBarType.fixed,
-              selectedItemColor:  Colors.blue.shade200,
-              unselectedItemColor:  const Color.fromARGB(255, 17, 19, 22),
-              selectedLabelStyle: TextStyle(
-                color: Colors.black,
-                fontSize: 15,
-                fontWeight: FontWeight.w900
-              ),
-              unselectedLabelStyle: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: Colors.black
-              ),
-              items:[ 
-                BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Ana Sayfa'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.filter_list_sharp),
-                  label: 'Filtrele'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.favorite),
-                  label:'Favoriler'
-                  ),
-                 BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label:'Giriş')
-                   
-
-              ],
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Ara'), // İkonu değiştirdim
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoriler'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Giriş'),
+        ],
       ),
     );
   }

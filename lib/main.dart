@@ -1,93 +1,78 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:easy_localization/easy_localization.dart'; // Yeni paketimiz
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart';
 
+// --- GLOBAL DEĞİŞKEN ---
 bool kullaniciGirisYapti = false;
 
-// Global favori cache sistemi
+// --- FAVORI CACHE (Aynen Kalıyor) ---
 class FavoriCache {
   static Set<String> _favoriYemekler = {};
-  static bool _isInitialized = false;
-  static DateTime? _lastUpdate;
-
-  // Cache'i temizle (çıkış yapıldığında)
-  static void clear() {
-    _favoriYemekler.clear();
-    _isInitialized = false;
-    _lastUpdate = null;
-  }
-
-  // Cache'i güncelle
-  static void updateFavorites(Set<String> favorites) {
-    _favoriYemekler = favorites;
-    _isInitialized = true;
-    _lastUpdate = DateTime.now();
-  }
-
-  // Cache'den favori listesini al
-  static Set<String> getFavorites() {
-    return Set.from(_favoriYemekler);
-  }
-
-  // Belirli bir yemeğin favori olup olmadığını kontrol et
-  static bool isFavorite(String yemekAd) {
-    return _favoriYemekler.contains(yemekAd);
-  }
-
-  // Cache'in güncel olup olmadığını kontrol et (5 dakika)
-  static bool isCacheValid() {
-    if (!_isInitialized || _lastUpdate == null) return false;
-    return DateTime.now().difference(_lastUpdate!).inMinutes < 5;
-  }
-
-  // Favori ekle/çıkar
+  static void clear() => _favoriYemekler.clear();
+  static void updateFavorites(Set<String> favorites) => _favoriYemekler = favorites;
+  static Set<String> getFavorites() => Set.from(_favoriYemekler);
+  static bool isFavorite(String yemekAd) => _favoriYemekler.contains(yemekAd);
   static void toggleFavorite(String yemekAd, bool isFavorite) {
-    if (isFavorite) {
-      _favoriYemekler.add(yemekAd);
-    } else {
-      _favoriYemekler.remove(yemekAd);
-    }
-    _lastUpdate = DateTime.now();
+    if (isFavorite) _favoriYemekler.add(yemekAd);
+    else _favoriYemekler.remove(yemekAd);
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. Dil Sistemini Başlat
+  await EasyLocalization.ensureInitialized();
 
+  // 2. .env ve Supabase
+  await dotenv.load(fileName: ".env");
   await Supabase.initialize(
-    url: 'https://vqusrhtyeztxhnsuiftd.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxdXNyaHR5ZXp0eGhuc3VpZnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5MTY0MzQsImV4cCI6MjA3MDQ5MjQzNH0.35qeTyxWqlrKr6m5VkNTk2jCNaWVdD7uXfczEs5Hz30',
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_KEY'] ?? '',
   );
 
-  // Kullanıcının giriş durumunu kontrol et
+  // 3. Kullanıcı Kontrolü
   final user = Supabase.instance.client.auth.currentUser;
   kullaniciGirisYapti = user != null;
   
-  // Eğer kullanıcı giriş yapmışsa favorileri cache'le
-  if (kullaniciGirisYapti && user != null) {
-
+  if (kullaniciGirisYapti) {
+     try {
+        final List<dynamic> rows = await Supabase.instance.client
+            .from('favorites')
+            .select('yemek_ad')
+            .eq('user_id', user!.id);
+        FavoriCache.updateFavorites(rows.map((row) => row['yemek_ad'] as String).toSet());
+      } catch (_) {}
   }
-  
-  // Performans optimizasyonu
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  runApp(MyApp());
+
+  // 4. Uygulamayı EasyLocalization ile sarıp başlatıyoruz
+  runApp(
+    EasyLocalization(
+      supportedLocales: [Locale('tr'), Locale('en')],
+      path: 'assets/translations', // JSON dosyalarının yolu
+      fallbackLocale: Locale('tr'), // Varsayılan dil
+      child: MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Yemek Tarifleri',
+      
+      // EasyLocalization Ayarları
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale, // Anlık seçili dil
+      
       home: kullaniciGirisYapti ? Anasayfa() : ProfilSayfasi(),
     );
   }

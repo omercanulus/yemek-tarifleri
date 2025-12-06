@@ -1,0 +1,15 @@
+{
+  "welcome": "Hoş Geldiniz",
+  "welcome_desc": "Dünya mutfağından en güzel tarifleri keşfet!",
+  "login": "Giriş Yap",
+  "signup": "Kaydol",
+  "email": "E-posta",
+  "password": "Şifre",
+  "my_profile": "Profilim",
+  "sign_out": "Çıkış Yap",
+  "home": "Ana Sayfa",
+  "search": "Ara",
+  "favorites": "Favoriler",
+  "profile": "Profil",
+  "language": "Dil"
+}
