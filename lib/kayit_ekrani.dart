@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart'; // Ana sayfaya yönlendirmek için
 import 'package:yemek_tarifleri/giris_ekrani.dart'; // Giriş ekranına dönmek için
 import 'package:yemek_tarifleri/animations.dart';
-import 'main.dart'; // kullaniciGirisYapti için
+import 'package:yemek_tarifleri/globals.dart';
 
 class KayitEkrani extends StatefulWidget {
   const KayitEkrani({super.key});

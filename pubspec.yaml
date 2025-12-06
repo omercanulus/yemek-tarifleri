@@ -31,6 +31,7 @@ flutter:
   assets:
     - assets/images/          # Resimlerin yeni adresi
     - assets/translations/    # Çeviri dosyalarının adresi
+    - .env
 
   # 2. FONTS KISMI (Burada da lib/ yazısını siliyoruz)
   fonts:

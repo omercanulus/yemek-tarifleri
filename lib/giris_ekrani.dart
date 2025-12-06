@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:yemek_tarifleri/kayit_ekrani.dart';
 import 'package:yemek_tarifleri/kullanici_profili.dart';
-import 'package:yemek_tarifleri/main.dart'; // FavoriCache ve kullaniciGirisYapti için
+import 'package:yemek_tarifleri/globals.dart'; // FavoriCache ve kullaniciGirisYapti için
 import 'package:yemek_tarifleri/animations.dart';
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 

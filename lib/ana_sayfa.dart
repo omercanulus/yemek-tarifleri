@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Supabase kütüphanesini ekledik
 import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
@@ -7,7 +8,7 @@ import 'package:yemek_tarifleri/giris_ekrani.dart';
 import 'package:yemek_tarifleri/yemek.dart';
 import 'tarif_sayfasi.dart';
 import 'yemek_listesi.dart'; // Eski liste kalsın ama kullanmayacağız
-import 'main.dart';
+import 'package:yemek_tarifleri/globals.dart';
 import 'animations.dart';
 
 class Anasayfa extends StatefulWidget {
@@ -77,24 +78,14 @@ class _AnasayfaState extends State<Anasayfa> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          title: Text.rich(
-            TextSpan(children: [
-              TextSpan(
-                  text: 'yemek',
-                  style: TextStyle(
-                      fontFamily: 'Nunito',
-                      color: Colors.blue.shade200,
-                      fontSize: 40, // Biraz küçülttüm taşmasın diye
-                      fontWeight: FontWeight.w900)),
-              TextSpan(
-                  text: 'tarifleri',
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 40,
-                    color: Colors.black,
-                    fontWeight: FontWeight.w900,
-                  ))
-            ]),
+          title: Text(
+            'recipeD',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              color: Colors.blue.shade200,
+              fontWeight: FontWeight.bold,
+              fontSize: 48,
+            ),
           ),
         ),
         body: GestureDetector(
@@ -120,7 +111,7 @@ class _AnasayfaState extends State<Anasayfa> {
                   ),
                   child: TextField(
                     decoration: InputDecoration(
-                        hintText: 'Yemek ara...',
+                        hintText: 'search_meals'.tr(),
                         hintStyle: TextStyle(fontWeight: FontWeight.w300),
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(

@@ -6,7 +6,7 @@ import 'package:yemek_tarifleri/kullanici_profili.dart';
 import 'package:yemek_tarifleri/tarif_sayfasi.dart';
 import 'package:yemek_tarifleri/yemek.dart';
 import 'package:yemek_tarifleri/animations.dart'; // Animasyonlar için
-import 'main.dart'; // kullaniciGirisYapti ve FavoriCache için
+import 'package:yemek_tarifleri/globals.dart'; // kullaniciGirisYapti ve FavoriCache için
 
 class FavorilerSayfasi extends StatefulWidget {
   final List<Yemek> yemekListesi;

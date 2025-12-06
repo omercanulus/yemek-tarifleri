@@ -6,7 +6,7 @@ import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
 import 'package:yemek_tarifleri/filtreleme_sayfasi.dart';
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 import 'package:yemek_tarifleri/animations.dart';
-import 'main.dart'; // FavoriCache ve kullaniciGirisYapti için
+import 'package:yemek_tarifleri/globals.dart'; // FavoriCache ve kullaniciGirisYapti için
 
 class KullaniciProfili extends StatefulWidget {
   const KullaniciProfili({super.key});

@@ -5,7 +5,7 @@ import 'package:yemek_tarifleri/giris_ekrani.dart';
 import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
 import 'package:yemek_tarifleri/yemek_listesi.dart';
 import 'yemek.dart';
-import 'main.dart';
+import 'package:yemek_tarifleri/globals.dart';
 
 class TarifSayfasi extends StatefulWidget {
   final Yemek yemek;

@@ -7,7 +7,7 @@ import 'package:yemek_tarifleri/favoriler_sayfasi.dart';
 import 'package:yemek_tarifleri/giris_ekrani.dart';
 import 'package:yemek_tarifleri/kullanici_profili.dart';
 import 'package:yemek_tarifleri/animations.dart';
-import 'main.dart'; // kullaniciGirisYapti değişkeni için
+import 'package:yemek_tarifleri/globals.dart'; // kullaniciGirisYapti değişkeni için
 
 class FiltrelemeSayfasi extends StatefulWidget {
   const FiltrelemeSayfasi({super.key});

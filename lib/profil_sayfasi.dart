@@ -47,7 +47,7 @@ class ProfilSayfasi extends StatelessWidget {
                 height: MediaQuery.of(context).size.height / 3,
                 decoration: BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('lib/assets/images/dondurma.png'),
+                    image: AssetImage('assets/images/dondurma.png'),
                     fit: BoxFit.contain,
                   ),
                 ),

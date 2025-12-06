@@ -4,22 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:easy_localization/easy_localization.dart'; // Yeni paketimiz
 import 'package:yemek_tarifleri/profil_sayfasi.dart';
 import 'package:yemek_tarifleri/ana_sayfa.dart';
-
-// --- GLOBAL DEĞİŞKEN ---
-bool kullaniciGirisYapti = false;
-
-// --- FAVORI CACHE (Aynen Kalıyor) ---
-class FavoriCache {
-  static Set<String> _favoriYemekler = {};
-  static void clear() => _favoriYemekler.clear();
-  static void updateFavorites(Set<String> favorites) => _favoriYemekler = favorites;
-  static Set<String> getFavorites() => Set.from(_favoriYemekler);
-  static bool isFavorite(String yemekAd) => _favoriYemekler.contains(yemekAd);
-  static void toggleFavorite(String yemekAd, bool isFavorite) {
-    if (isFavorite) _favoriYemekler.add(yemekAd);
-    else _favoriYemekler.remove(yemekAd);
-  }
-}
+import 'package:yemek_tarifleri/globals.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
